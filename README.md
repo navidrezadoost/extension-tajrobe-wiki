@@ -1,0 +1,57 @@
+# 🌐 Tajrobe Wiki Chrome Extension  
+
+A modern **Chrome Extension** (Manifest V3) that automatically detects the website you are visiting and fetches its profile from [Tajrobe.wiki](https://tajrobe.wiki).  
+See company ratings, reviews, categories, and verification status instantly — right from your browser toolbar.  
+
+---
+
+## ✨ Features  
+
+- 🔍 **Automatic domain detection** – identifies the active site’s domain in real time.  
+- 🌐 **Instant Tajrobe lookup** – queries the [Tajrobe.wiki API](https://tajrobe.wiki) for matching company profiles.  
+- 📊 **Profile at a glance** – shows company name, logo, description, rating, review count, and categories.  
+- 🖼 **Dynamic toolbar icon** – status-aware icons for searching, success, data found, or no data.  
+- 📌 **Popup interface** – clean RTL-friendly UI with Persian font support (`Vazirmatn`).  
+- 🗂 **Per-tab storage** – profile and status are cached per tab and auto-cleared when switching domains.  
+
+---
+
+## 📸 Screenshots  
+
+> *(Add screenshots of your extension popup and icon states here)*  
+
+---
+
+## 🛠️ Tech Stack  
+
+- **Manifest V3** Chrome Extension  
+- **JavaScript (ES6+)**  
+- **Chrome APIs**: `storage`, `tabs`, `webNavigation`, `action`  
+- **HTML / CSS** for popup interface  
+- **Google Fonts** – [Vazirmatn](https://fonts.google.com/specimen/Vazirmatn) for Persian-friendly typography  
+
+---
+
+## 📂 Project Structure  
+
+.
+├── manifest.json # Extension manifest (MV3)
+├── assets/
+│ └── icons/ # Toolbar & status icons
+├── src/
+│ ├── util.js # Background service worker (domain lookup, API calls, storage)
+│ ├── popup.html # Popup interface markup
+│ ├── popup.js # Popup logic (UI updates, storage listener)
+│ └── popup.css # Popup styling (RTL, responsive)
+
+
+
+
+---
+
+## 🚀 Installation (Developer Mode)  
+
+1. Clone the repository:  
+   ```bash
+   git clone https://github.com/navidrezadoost/extension-tajrobe-wiki.git
+   cd tajrobe-wiki-extension
