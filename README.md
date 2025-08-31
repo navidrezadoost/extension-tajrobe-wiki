@@ -1,5 +1,5 @@
 # 🌐 Tajrobe Wiki Chrome Extension  
-<img src="assets/icons/icon.png" alt="Tajrobe Wiki Logo" width="200"/>
+<img src="assets/icons/icon.png" alt="Tajrobe Wiki Logo" width="500"/>
 
 A modern **Chrome Extension** (Manifest V3) that automatically detects the website you are visiting and fetches its profile from [Tajrobe.wiki](https://tajrobe.wiki).  
 See company ratings, reviews, categories, and verification status instantly — right from your browser toolbar.  
