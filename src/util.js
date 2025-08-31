@@ -169,29 +169,39 @@ async function runLookup(tabId, domain) {
 async function handleNav(tabId, url) {
   const isHttp = /^https?:/i.test(url);
   if (!isHttp) {
-    // Not an HTTP(S) page → clear state
     clearTabData(tabId);
     return;
   }
 
   const newDomain = getDomain(url);
   if (!newDomain) {
-    // Could not parse domain
     clearTabData(tabId);
+    return;
+  }
+
+  // -----------------------------
+  // Skip rule: ignore google.com and all subdomains (*.google.com)
+  // -----------------------------
+  if (newDomain === "google.com" || newDomain.endsWith(".google.com")) {
+    // Instead of searching, just mark as no_data
+    await setLocal({
+      [KEY.domain(tabId)]: newDomain,
+      [KEY.status(tabId)]: "no_data"
+    });
+    setIcon(tabId, "no_data");
     return;
   }
 
   const { [KEY.domain(tabId)]: oldDomain } = await getLocal([KEY.domain(tabId)]);
 
-  // Only clear profile if domain truly changed
   if (oldDomain && oldDomain !== newDomain) {
     clearTabData(tabId, { keepDomain: true });
   }
 
-  // Save the current domain and trigger a lookup
   await setLocal({ [KEY.domain(tabId)]: newDomain });
   runLookup(tabId, newDomain);
 }
+
 
 // ---------------------------
 // Event listeners

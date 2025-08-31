@@ -103,6 +103,14 @@ function updateUI(status, profile = null) {
       noDataState.classList.remove("hidden");
       break;
 
+    case "idle":
+      statusElement.textContent = "غیرفعال";
+      noDataState.classList.remove("hidden");
+      noDataState.querySelector("h3").textContent = "اتصال افزودنه برقرار است";
+      noDataState.querySelector("p").textContent = "برای بهترین انتخابات ما تجربیات مون را باهات به اشتراک میگذاریم";
+      break;
+
+
     default:
       // Initialization state (before any lookup starts)
       statusElement.textContent = "Initializing...";
@@ -129,6 +137,7 @@ function getCurrentTab() {
  * - Renders UI immediately
  * - Subscribes to chrome.storage.onChanged for live updates
  */
+// Initialize popup
 (async function init() {
   const tab = await getCurrentTab();
   if (!tab) return;
@@ -136,20 +145,26 @@ function getCurrentTab() {
   const profileKey = "profile_" + tab.id;
   const statusKey = "status_" + tab.id;
 
-  // Initial render (when popup is opened)
   chrome.storage.local.get([profileKey, statusKey], (res) => {
-    updateUI(res[statusKey] || "searching", res[profileKey]);
+    let status = res[statusKey];
+    let profile = res[profileKey];
+
+    // ✅ Handle case: no navigation yet (chrome://newtab or blank page)
+    const isHttp = /^https?:/i.test(tab.url || "");
+    if (!isHttp) {
+      status = "idle"; // new state for idle/inactive
+    }
+
+    updateUI(status || "idle", profile);
   });
 
-  // Reactively update popup when background.js changes status/profile
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
-
-    // Only respond to changes for this specific tab
     if (changes[statusKey] || changes[profileKey]) {
       chrome.storage.local.get([profileKey, statusKey], (res) => {
-        updateUI(res[statusKey] || "searching", res[profileKey]);
+        updateUI(res[statusKey] || "idle", res[profileKey]);
       });
     }
   });
 })();
+
