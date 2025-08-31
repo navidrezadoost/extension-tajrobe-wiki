@@ -32,7 +32,7 @@ function updateUI(status, profile = null) {
 
     case "data_returned":
       // Full profile successfully fetched and ready to display
-      statusElement.textContent = "متصل";
+      statusElement.textContent = "یافت شد";
       companyInfo.classList.remove("hidden");
 
       if (profile) {
