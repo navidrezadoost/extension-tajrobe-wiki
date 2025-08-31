@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Tajrobe Wiki",
+  "version": "1.0",
+  "description": "This extension automatically searches tajrobe.wiki for site info.",
+  "permissions": ["storage", "tabs", "webNavigation"],
+  "host_permissions": ["https://tajrobe.wiki/*", "http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "src/util.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_icon": {
+      "16": "assets/icons/wiki-logo.png",
+      "48": "assets/icons/wiki-logo.png",
+      "128": "assets/icons/wiki-logo.png"
+    }
+  }
+}
