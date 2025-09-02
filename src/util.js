@@ -12,12 +12,12 @@
  * @returns {string|null} The normalized domain (e.g. "example.com") or null on failure.
  */
 function getDomain(url) {
-  try {
-    const h = new URL(url).hostname;
-    return h.replace(/^www\./, "");
-  } catch {
-    return null; // invalid or non-http(s) URL
-  }
+    try {
+        const h = new URL(url).hostname;
+        return h.replace(/^www\./, "");
+    } catch {
+        return null; // invalid or non-http(s) URL
+    }
 }
 
 // ---------------------------
@@ -26,9 +26,9 @@ function getDomain(url) {
 // All state is stored in chrome.storage.local, keyed by tabId.
 // This ensures per-tab isolation (each tab maintains its own state).
 const KEY = {
-  domain: (tabId) => `domain_${tabId}`,
-  status: (tabId) => `status_${tabId}`,
-  profile: (tabId) => `profile_${tabId}`,
+    domain: (tabId) => `domain_${tabId}`,
+    status: (tabId) => `status_${tabId}`,
+    profile: (tabId) => `profile_${tabId}`,
 };
 
 // ---------------------------
@@ -37,11 +37,11 @@ const KEY = {
 // Maps statuses to icon asset paths.
 // ⚠️ IMPORTANT: Paths must be relative to extension root (no leading "/").
 const ICON = {
-  falild: "assets/icons/falild.png",          // idle/default state
-  searching: "/assets/icons/searching.png",  // API lookup in progress
-  success: "/assets/icons/success.png",      // search success
-  data_returned: "/assets/icons/success.png",// profile data fetched
-  no_data: "assets/icons/no-data.png",      // no company found
+    falild: "assets/icons/falild.png", // idle/default state
+    searching: "/assets/icons/searching.png", // API lookup in progress
+    success: "/assets/icons/success.png", // search success
+    data_returned: "/assets/icons/success.png", // profile data fetched
+    no_data: "assets/icons/no-data.png", // no company found
 };
 
 /**
@@ -52,7 +52,7 @@ const ICON = {
  * @param {string} status
  */
 function setIcon(tabId, status) {
-  chrome.action.setIcon({ tabId, path: ICON[status] || ICON.falild });
+    chrome.action.setIcon({ tabId, path: ICON[status] || ICON.falild });
 }
 
 /**
@@ -62,8 +62,8 @@ function setIcon(tabId, status) {
  * @param {string} status
  */
 function setStatus(tabId, status) {
-  chrome.storage.local.set({ [KEY.status(tabId)]: status });
-  setIcon(tabId, status);
+    chrome.storage.local.set({ [KEY.status(tabId)]: status });
+    setIcon(tabId, status);
 }
 
 /**
@@ -75,21 +75,19 @@ function setStatus(tabId, status) {
  * @param {boolean} options.keepDomain - If true, domain key is preserved.
  */
 function clearTabData(tabId, { keepDomain = false } = {}) {
-  const remove = [KEY.profile(tabId), KEY.status(tabId)];
-  if (!keepDomain) remove.push(KEY.domain(tabId));
-  chrome.storage.local.remove(remove);
+    const remove = [KEY.profile(tabId), KEY.status(tabId)];
+    if (!keepDomain) remove.push(KEY.domain(tabId));
+    chrome.storage.local.remove(remove);
 
-  // Reset icon to idle
-  setIcon(tabId, "falild");
+    // Reset icon to idle
+    setIcon(tabId, "falild");
 }
 
 // ---------------------------
 // Storage convenience wrappers
 // ---------------------------
-const getLocal = (keys) =>
-  new Promise((resolve) => chrome.storage.local.get(keys, resolve));
-const setLocal = (obj) =>
-  new Promise((resolve) => chrome.storage.local.set(obj, resolve));
+const getLocal = (keys) => new Promise((resolve) => chrome.storage.local.get(keys, resolve));
+const setLocal = (obj) => new Promise((resolve) => chrome.storage.local.set(obj, resolve));
 
 /**
  * Runs the lookup flow for a given domain:
@@ -105,54 +103,91 @@ const setLocal = (obj) =>
  * @param {number} tabId
  * @param {string} domain
  */
+/**
+ * Runs the lookup flow for a given domain:
+ * 1. Mark tab status as "searching"
+ * 2. Call search endpoint with domain
+ * 3. Validate that the returned URL includes the real domain
+ * 4. If valid → fetch profile
+ * 5. Otherwise → mark as "no_data"
+ *
+ * @param {number} tabId
+ * @param {string} domain
+ */
 async function runLookup(tabId, domain) {
-  try {
-    // Guard: make sure the tab still matches this domain
-    const { [KEY.domain(tabId)]: domNow } = await getLocal([KEY.domain(tabId)]);
-    if (domNow !== domain) return;
+    try {
+        // Guard: make sure the tab still matches this domain
+        const { [KEY.domain(tabId)]: domNow } = await getLocal([KEY.domain(tabId)]);
+        if (domNow !== domain) return;
 
-    setStatus(tabId, "searching");
+        setStatus(tabId, "searching");
 
-    // 1. Search request
-    const sRes = await fetch(
-      `https://tajrobe.wiki/api/client/search?q=${encodeURIComponent(domain)}&citySlug=iran`
-    );
-    const sJson = await sRes.json();
+        // 1. Search request
+        const sRes = await fetch(`https://tajrobe.wiki/api/client/search?q=${encodeURIComponent(domain)}&citySlug=iran`);
+        const sJson = await sRes.json();
 
-    // Guard again after network roundtrip
-    const { [KEY.domain(tabId)]: domAfterSearch } = await getLocal([KEY.domain(tabId)]);
-    if (domAfterSearch !== domain) return;
+        // Guard again after network roundtrip
+        const { [KEY.domain(tabId)]: domAfterSearch } = await getLocal([KEY.domain(tabId)]);
+        if (domAfterSearch !== domain) return;
 
-    if (sJson && sJson.data && sJson.data.length > 0) {
-      // Found a candidate → status "success"
-      setStatus(tabId, "success");
+        // 2. Validate data exists
+        if (sJson && Array.isArray(sJson.data) && sJson.data.length > 0) {
+            // ✅ Case A: Multiple results → let popup show a list
+            if (sJson.data.length > 1) {
+                await setLocal({
+                    [KEY.status(tabId)]: "multiple_results",
+                    [KEY.profile(tabId)]: sJson.data, // store array for popup
+                });
+                setIcon(tabId, "success");
+                return;
+            }
 
-      // 2. Fetch profile by slug
-      const slug = sJson.data[0].slug;
-      const pRes = await fetch(
-        `https://tajrobe.wiki/api/client/profile/${encodeURIComponent(slug)}`
-      );
-      const pJson = await pRes.json();
+            // ✅ Case B: Only one result → validate + fetch profile
+            const candidate = sJson.data[0];
 
-      // Guard again (domain may have changed mid-fetch)
-      const { [KEY.domain(tabId)]: domAfterProfile } = await getLocal([KEY.domain(tabId)]);
-      if (domAfterProfile !== domain) return;
+            // Extract hostname from candidate.url
+            let candidateHost;
+            try {
+                candidateHost = new URL(candidate.url).hostname.replace(/^www\./, "").toLowerCase();
+            } catch {
+                candidateHost = "";
+            }
 
-      // Store profile + status
-      await setLocal({
-        [KEY.profile(tabId)]: pJson?.data ?? null,
-        [KEY.status(tabId)]: "data_returned",
-      });
-      setIcon(tabId, "data_returned");
-    } else {
-      // No company data for this domain
-      setStatus(tabId, "no_data");
+            const realDomain = domain.toLowerCase();
+            const isMatch = candidateHost === realDomain || candidateHost.endsWith("." + realDomain);
+
+            if (!isMatch) {
+                // Example: domain = "youtube.com"
+                // candidateHost = "kajyoutube.com" → ❌ not a match
+                setStatus(tabId, "no_data");
+                return;
+            }
+
+            // Passed validation → continue with profile fetch
+            setStatus(tabId, "success");
+
+            const slug = candidate.slug;
+            const pRes = await fetch(`https://tajrobe.wiki/api/client/profile/${encodeURIComponent(slug)}`);
+            const pJson = await pRes.json();
+
+            // Guard again (domain may have changed mid-fetch)
+            const { [KEY.domain(tabId)]: domAfterProfile } = await getLocal([KEY.domain(tabId)]);
+            if (domAfterProfile !== domain) return;
+
+            // Store profile + status
+            await setLocal({
+                [KEY.profile(tabId)]: pJson?.data ?? null,
+                [KEY.status(tabId)]: "data_returned",
+            });
+            setIcon(tabId, "data_returned");
+        } else {
+            // No company data for this domain
+            setStatus(tabId, "no_data");
+        }
+    } catch (e) {
+        console.error("Lookup failed:", e);
+        setStatus(tabId, "no_data");
     }
-  } catch (e) {
-    // Any network/JSON error falls back to "no_data"
-    console.error("Lookup falild:", e);
-    setStatus(tabId, "no_data");
-  }
 }
 
 /**
@@ -167,41 +202,40 @@ async function runLookup(tabId, domain) {
  * @param {string} url
  */
 async function handleNav(tabId, url) {
-  const isHttp = /^https?:/i.test(url);
-  if (!isHttp) {
-    clearTabData(tabId);
-    return;
-  }
+    const isHttp = /^https?:/i.test(url);
+    if (!isHttp) {
+        clearTabData(tabId);
+        return;
+    }
 
-  const newDomain = getDomain(url);
-  if (!newDomain) {
-    clearTabData(tabId);
-    return;
-  }
+    const newDomain = getDomain(url);
+    if (!newDomain) {
+        clearTabData(tabId);
+        return;
+    }
 
-  // -----------------------------
-  // Skip rule: ignore google.com and all subdomains (*.google.com)
-  // -----------------------------
-  if (newDomain === "google.com" || newDomain.endsWith(".google.com")) {
-    // Instead of searching, just mark as no_data
-    await setLocal({
-      [KEY.domain(tabId)]: newDomain,
-      [KEY.status(tabId)]: "no_data"
-    });
-    setIcon(tabId, "no_data");
-    return;
-  }
+    // -----------------------------
+    // Skip rule: ignore google.com and all subdomains (*.google.com)
+    // -----------------------------
+    if (newDomain === "google.com" || newDomain.endsWith(".google.com")) {
+        // Instead of searching, just mark as no_data
+        await setLocal({
+            [KEY.domain(tabId)]: newDomain,
+            [KEY.status(tabId)]: "no_data",
+        });
+        setIcon(tabId, "no_data");
+        return;
+    }
 
-  const { [KEY.domain(tabId)]: oldDomain } = await getLocal([KEY.domain(tabId)]);
+    const { [KEY.domain(tabId)]: oldDomain } = await getLocal([KEY.domain(tabId)]);
 
-  if (oldDomain && oldDomain !== newDomain) {
-    clearTabData(tabId, { keepDomain: true });
-  }
+    if (oldDomain && oldDomain !== newDomain) {
+        clearTabData(tabId, { keepDomain: true });
+    }
 
-  await setLocal({ [KEY.domain(tabId)]: newDomain });
-  runLookup(tabId, newDomain);
+    await setLocal({ [KEY.domain(tabId)]: newDomain });
+    runLookup(tabId, newDomain);
 }
-
 
 // ---------------------------
 // Event listeners
@@ -209,10 +243,10 @@ async function handleNav(tabId, url) {
 
 // Fires for *main frame* navigations (back/forward/reload/new URL)
 chrome.webNavigation.onCommitted.addListener(({ tabId, url, frameId }) => {
-  if (frameId === 0) handleNav(tabId, url);
+    if (frameId === 0) handleNav(tabId, url);
 });
 
 // When a tab is closed, clean up its storage keys
 chrome.tabs.onRemoved.addListener((tabId) => {
-  chrome.storage.local.remove([KEY.profile(tabId), KEY.status(tabId), KEY.domain(tabId)]);
+    chrome.storage.local.remove([KEY.profile(tabId), KEY.status(tabId), KEY.domain(tabId)]);
 });

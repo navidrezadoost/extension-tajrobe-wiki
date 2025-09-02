@@ -1,3 +1,11 @@
+function setRatingStars(rating) {
+  const starImg = document.getElementById("rating-star-image");
+  const rounded = Math.round(parseInt(rating)); // round 0–5
+  starImg.src = `/assets/icons/stars-${rounded}.svg`;
+}
+
+
+
 /**
  * updateUI – Renders the popup interface depending on the current extension state
  *
@@ -6,117 +14,143 @@
  * @param {Object|null} profile - The profile object fetched from tajrobe.wiki API (or null if not available)
  */
 function updateUI(status, profile = null) {
-  // Grab key DOM elements once at the top
-  const statusElement = document.getElementById("status");
-  const loadingState = document.getElementById("loading-state");
-  const companyInfo = document.getElementById("company-info");
-  const noDataState = document.getElementById("no-data-state");
+    const statusElement = document.getElementById("status");
+    const loadingState = document.getElementById("loading-state");
+    const companyInfo = document.getElementById("company-info");
+    const noDataState = document.getElementById("no-data-state");
+    const resultsList = document.getElementById("results-list");
+    const backButton = document.getElementById("back-button");
 
-  // Reset: hide all major sections before rendering the current one
-  loadingState.classList.add("hidden");
-  companyInfo.classList.add("hidden");
-  noDataState.classList.add("hidden");
+    // Reset all sections
+    loadingState.classList.add("hidden");
+    companyInfo.classList.add("hidden");
+    noDataState.classList.add("hidden");
+    resultsList.classList.add("hidden");
+    backButton.classList.add("hidden");
 
-  switch (status) {
-    case "searching":
-      // User has just navigated, API request in-flight
-      statusElement.textContent = "در حال جستجو...";
-      loadingState.classList.remove("hidden");
-      break;
+    switch (status) {
+        case "searching":
+            statusElement.textContent = "در حال جستجو...";
+            loadingState.classList.remove("hidden");
+            break;
 
-    case "success":
-      // Search API returned a company slug; profile fetch will follow
-      statusElement.textContent = "یافتن پروفایل";
-      loadingState.classList.remove("hidden");
-      break;
+        case "success":
+            statusElement.textContent = "یافتن پروفایل";
+            loadingState.classList.remove("hidden");
+            break;
 
-    case "data_returned":
-      // Full profile successfully fetched and ready to display
-      statusElement.textContent = "یافت شد";
-      companyInfo.classList.remove("hidden");
+        case "multiple_results":
+            statusElement.textContent = "چند نتیجه یافت شد";
+            resultsList.classList.remove("hidden");
+            resultsList.innerHTML = "";
 
-      if (profile) {
-        // --- Company Name ---
-        document.getElementById("company-name").textContent = profile.name || "Unknown";
+            profile.forEach((result, index) => {
+                const item = document.createElement("div");
+                item.className = "result-item slide-up";
+                item.style.animationDelay = `${index * 0.05}s`; // stagger animation
+                item.textContent = result.name || result.url;
 
-        // --- Logo handling ---
-        const logoImg = document.getElementById("company-logo");
-        const logoPlaceholder = document.getElementById("company-logo-placeholder");
-        if (profile.logo) {
-          // Use provided logo URL
-          logoImg.src = profile.logo;
-          logoImg.style.display = "block";
-          logoPlaceholder.style.display = "none";
-        } else {
-          // Fallback: hide <img>, show SVG placeholder
-          logoImg.style.display = "none";
-          logoPlaceholder.style.display = "flex";
-        }
+                item.addEventListener("click", async () => {
+                    const pRes = await fetch(`https://tajrobe.wiki/api/client/profile/${encodeURIComponent(result.slug)}`);
+                    const pJson = await pRes.json();
+                    const tab = await getCurrentTab();
 
-        // --- Rating and review count ---
-        const ratingVal = Number(profile.rating) || 0;
-        document.getElementById("rating-value").textContent = ratingVal.toFixed(1);
-        document.getElementById("review-count").textContent = `(${profile.total_reviews || 0} تجربه)`;
+                    chrome.storage.local.set({
+                        ["profile_" + tab.id]: pJson?.data ?? null,
+                        ["status_" + tab.id]: "data_returned",
+                        ["last_results_" + tab.id]: profile,
+                    });
+                });
 
-        // --- Verification badge ---
-        const verificationBadge = document.getElementById("verification-badge");
-        if (profile.is_verified) {
-          verificationBadge.classList.remove("hidden");
-        } else {
-          verificationBadge.classList.add("hidden");
-        }
+                resultsList.appendChild(item);
+            });
+            break;
 
-        // --- Description (HTML provided by API, so it is inserted directly) ---
-        const descEl = document.getElementById("description");
-        descEl.innerHTML = profile.description || "";
+        case "data_returned":
+            statusElement.textContent = "یافت شد";
+            companyInfo.classList.remove("hidden");
+            companyInfo.classList.add("fade-in");
 
-        // --- Categories (array of objects: {id, name, slug, icon,...}) ---
-        const categoriesEl = document.getElementById("categories");
-        categoriesEl.innerHTML = "";
-        if (profile.categories && profile.categories.length > 0) {
-          categoriesEl.classList.remove("hidden");
-          profile.categories.forEach(cat => {
-            const tag = document.createElement("div");
-            tag.className = "category-tag";
-            tag.textContent = cat.name;
-            categoriesEl.appendChild(tag);
-          });
-        } else {
-          categoriesEl.classList.add("hidden");
-        }
+            // check if we came from multiple results → show back button
+            getCurrentTab().then((tab) => {
+                chrome.storage.local.get(["last_results_" + tab.id], (res) => {
+                    if (res["last_results_" + tab.id]) {
+                        backButton.classList.remove("hidden");
+                        backButton.onclick = () => {
+                            chrome.storage.local.set({
+                                ["profile_" + tab.id]: res["last_results_" + tab.id],
+                                ["status_" + tab.id]: "multiple_results",
+                            });
+                        };
+                    }
+                });
+            });
 
-        // --- External link to Tajrobe profile ---
-        const visitBtn = document.getElementById("visit-site");
-        if (profile.url) {
-          // Link to the official Tajrobe profile page using slug
-          visitBtn.href = `https://tajrobe.wiki/profile/${profile.slug}?page=1&sort=most_relevant`;
-          visitBtn.style.display = "flex";
-        } else {
-          visitBtn.style.display = "none";
-        }
-      }
-      break;
+            if (profile) {
+                document.getElementById("company-name").textContent = profile.name || "Unknown";
+                const logoImg = document.getElementById("company-logo");
+                const logoPlaceholder = document.getElementById("company-logo-placeholder");
+                if (profile.logo) {
+                    logoImg.src = profile.logo;
+                    logoImg.style.display = "block";
+                    logoPlaceholder.style.display = "none";
+                } else {
+                    logoImg.style.display = "none";
+                    logoPlaceholder.style.display = "flex";
+                }
 
-    case "no_data":
-      // API returned no matches for this domain
-      statusElement.textContent = "یافت نشد";
-      noDataState.classList.remove("hidden");
-      break;
+                const ratingVal = Number(profile.rating) || 0;
+                document.getElementById("rating-value").textContent = ratingVal.toFixed(1);
+                setRatingStars(ratingVal.toFixed(1));
+                
+                document.getElementById("review-count").textContent = `(${profile.total_reviews || 0} تجربه)`;
 
-    case "idle":
-      statusElement.textContent = "غیرفعال";
-      noDataState.classList.remove("hidden");
-      noDataState.querySelector("h3").textContent = "اتصال افزودنه برقرار است";
-      noDataState.querySelector("p").textContent = "برای بهترین انتخابات ما تجربیات مون را باهات به اشتراک میگذاریم";
-      break;
+                const verificationBadge = document.getElementById("verification-badge");
+                verificationBadge.classList.toggle("hidden", !profile.is_verified);
 
+                document.getElementById("description").innerHTML = profile.description || "";
 
-    default:
-      // Initialization state (before any lookup starts)
-      statusElement.textContent = "Initializing...";
-      loadingState.classList.remove("hidden");
-      break;
-  }
+                const categoriesEl = document.getElementById("categories");
+                categoriesEl.innerHTML = "";
+                if (profile.categories && profile.categories.length > 0) {
+                    categoriesEl.classList.remove("hidden");
+                    profile.categories.forEach((cat) => {
+                        const tag = document.createElement("div");
+                        tag.className = "category-tag";
+                        tag.textContent = cat.name;
+                        categoriesEl.appendChild(tag);
+                    });
+                } else {
+                    categoriesEl.classList.add("hidden");
+                }
+
+                const visitBtn = document.getElementById("visit-site");
+                if (profile.slug) {
+                    visitBtn.href = `https://tajrobe.wiki/profile/${profile.slug}?page=1&sort=most_relevant`;
+                    visitBtn.style.display = "flex";
+                } else {
+                    visitBtn.style.display = "none";
+                }
+            }
+            break;
+
+        case "no_data":
+            statusElement.textContent = "یافت نشد";
+            noDataState.classList.remove("hidden");
+            break;
+
+        case "idle":
+            statusElement.textContent = "غیرفعال";
+            noDataState.classList.remove("hidden");
+            noDataState.querySelector("h3").textContent = "اتصال افزودنه برقرار است";
+            noDataState.querySelector("p").textContent = "برای بهترین انتخابات ما تجربیات مون را باهات به اشتراک میگذاریم";
+            break;
+
+        default:
+            statusElement.textContent = "Initializing...";
+            loadingState.classList.remove("hidden");
+            break;
+    }
 }
 
 /**
@@ -125,9 +159,9 @@ function updateUI(status, profile = null) {
  * @returns {Promise<Tab>} Resolves with the current active tab object
  */
 function getCurrentTab() {
-  return new Promise((resolve) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => resolve(tabs[0]));
-  });
+    return new Promise((resolve) => {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => resolve(tabs[0]));
+    });
 }
 
 /**
@@ -139,32 +173,32 @@ function getCurrentTab() {
  */
 // Initialize popup
 (async function init() {
-  const tab = await getCurrentTab();
-  if (!tab) return;
+    const tab = await getCurrentTab();
+    if (!tab) return;
 
-  const profileKey = "profile_" + tab.id;
-  const statusKey = "status_" + tab.id;
+    const profileKey = "profile_" + tab.id;
+    const statusKey = "status_" + tab.id;
 
-  chrome.storage.local.get([profileKey, statusKey], (res) => {
-    let status = res[statusKey];
-    let profile = res[profileKey];
+    chrome.storage.local.get([profileKey, statusKey], (res) => {
+        let status = res[statusKey];
+        let profile = res[profileKey];
 
-    // ✅ Handle case: no navigation yet (chrome://newtab or blank page)
-    const isHttp = /^https?:/i.test(tab.url || "");
-    if (!isHttp) {
-      status = "idle"; // new state for idle/inactive
-    }
+        // ✅ Handle case: no navigation yet (chrome://newtab or blank page)
+        const isHttp = /^https?:/i.test(tab.url || "");
+        if (!isHttp) {
+            status = "idle"; // new state for idle/inactive
+        }
 
-    updateUI(status || "idle", profile);
-  });
+        updateUI(status || "idle", profile);
+    });
 
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== "local") return;
-    if (changes[statusKey] || changes[profileKey]) {
-      chrome.storage.local.get([profileKey, statusKey], (res) => {
-        updateUI(res[statusKey] || "idle", res[profileKey]);
-      });
-    }
-  });
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== "local") return;
+        if (changes[statusKey] || changes[profileKey]) {
+            chrome.storage.local.get([profileKey, statusKey], (res) => {
+                updateUI(res[statusKey] || "idle", res[profileKey]);
+            });
+        }
+    });
 })();
 
