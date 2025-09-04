@@ -19,7 +19,12 @@ See company ratings, reviews, categories, and verification status instantly — 
 
 ## 📸 Screenshots  
 
-> *(Add screenshots of your extension popup and icon states here)*  
+![Extension Popup](https://s34.picofile.com/file/8486768942/Screenshot_from_2025_09_03_01_46_38.png)
+![Extension Popup](https://s34.picofile.com/file/8486768968/Screenshot_from_2025_09_03_01_47_22.png)
+![Extension Popup](https://s34.picofile.com/file/8486768976/Screenshot_from_2025_09_03_01_48_43.png)
+![Extension Popup](https://s34.picofile.com/file/8486768984/Screenshot_from_2025_09_03_01_49_00.png)
+![Extension Popup](https://s34.picofile.com/file/8486768934/Screenshot_from_2025_09_03_01_46_28.png)
+
 
 ---
 
